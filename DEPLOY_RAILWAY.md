@@ -47,7 +47,7 @@ php scripts/railway-init.php
 
 เปิด Web Service → `Settings` → `Networking` → `Generate Domain` แล้วเข้า URL `https://...up.railway.app`
 
-Health check ใช้ path `/login` และ Apache เปิด `.htaccess` rewrite สำหรับ route ของระบบแล้ว
+Health check ใช้ path `/health.php` เพื่อตรวจทั้ง PHP และการเชื่อมต่อฐานข้อมูล โดยไม่เปิดเผย credential และ Apache เปิด `.htaccess` rewrite สำหรับ route ของระบบแล้ว
 
 ## 6. หลัง deploy
 
