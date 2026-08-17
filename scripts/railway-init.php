@@ -1,0 +1,64 @@
+<?php
+declare(strict_types=1);
+
+require __DIR__ . '/../lib/db.php';
+
+$requiredTables = [
+    'admin', 'department', 'employee', 'job', 'payment',
+    'attendance', 'attendance_settings', 'attendance_location_settings',
+    'attendance_geofences', 'employee_accounts', 'payroll_settings',
+    'payment_snapshots', 'payroll_adjustments',
+];
+
+$tableResult = mysqli_query($connection, "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()");
+$existingTables = [];
+while ($row = mysqli_fetch_assoc($tableResult)) $existingTables[] = (string) $row['TABLE_NAME'];
+
+if ($existingTables) {
+    $missing = array_values(array_diff($requiredTables, $existingTables));
+    if ($missing) {
+        fwrite(STDERR, 'Database is not empty but its schema is incomplete. Missing: ' . implode(', ', $missing) . PHP_EOL);
+        exit(1);
+    }
+    echo "Database schema already exists; baseline import skipped.\n";
+    exit(0);
+}
+
+$dumpPath = __DIR__ . '/../database/EE.sql';
+$sql = file_get_contents($dumpPath);
+if ($sql === false) {
+    fwrite(STDERR, "Cannot read database/EE.sql\n");
+    exit(1);
+}
+
+// Railway supplies the database name. Never create or switch databases from the dump.
+$sql = preg_replace('/^\s*CREATE\s+DATABASE\b.*?;\s*$/mi', '', $sql);
+$sql = preg_replace('/^\s*USE\s+`?[^`;]+`?\s*;\s*$/mi', '', $sql);
+
+if (!mysqli_multi_query($connection, $sql)) {
+    fwrite(STDERR, 'Baseline import failed: ' . mysqli_error($connection) . PHP_EOL);
+    exit(1);
+}
+
+do {
+    if ($result = mysqli_store_result($connection)) mysqli_free_result($result);
+    if (!mysqli_more_results($connection)) break;
+} while (mysqli_next_result($connection));
+
+if (mysqli_errno($connection)) {
+    fwrite(STDERR, 'Baseline import failed: ' . mysqli_error($connection) . PHP_EOL);
+    exit(1);
+}
+
+$missingAfterImport = [];
+foreach ($requiredTables as $table) {
+    $escaped = mysqli_real_escape_string($connection, $table);
+    $result = mysqli_query($connection, "SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{$escaped}' LIMIT 1");
+    if (!$result || mysqli_num_rows($result) === 0) $missingAfterImport[] = $table;
+}
+if ($missingAfterImport) {
+    fwrite(STDERR, 'Baseline import ended with missing tables: ' . implode(', ', $missingAfterImport) . PHP_EOL);
+    exit(1);
+}
+
+echo "Railway database baseline imported successfully.\n";
