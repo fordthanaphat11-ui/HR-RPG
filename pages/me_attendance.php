@@ -18,12 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $result = attendanceProcessAction($connection, $employeeId, (string) ($_POST['attendance_action'] ?? ''), (string) $_SESSION['username'], $settings, $_POST);
             $message = (string) $result['message'];
+            appToast('success', $message);
         } catch (Throwable $exception) {
             $error = $exception->getMessage();
         }
     }
     $now = attendanceNow($settings);
 }
+if ($error !== '') appRequestToast('error', $error);
 
 $employeeStmt = mysqli_prepare($connection, 'SELECT Employee_id, Name FROM employee WHERE Employee_id=? LIMIT 1');
 mysqli_stmt_bind_param($employeeStmt, 'i', $employeeId); mysqli_stmt_execute($employeeStmt);
@@ -46,7 +48,6 @@ $escape = static fn($value): string => htmlspecialchars((string) $value, ENT_QUO
 <div class="mx-auto w-full max-w-5xl space-y-4">
     <header class="border-b border-[#dedede] pb-3"><h1 class="text-xl font-semibold text-[#202223]">เช็คชื่อของฉัน</h1><p class="mt-0.5 text-sm text-[#6d7175]">บันทึกเวลาเข้าและออกงานด้วยบัญชีของคุณเท่านั้น</p></header>
     <section id="employee-attendance-workspace" class="space-y-4">
-    <?php if ($message): ?><div class="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-[14px] text-emerald-800"><i class="fa-solid fa-circle-check mr-2"></i><?= $escape($message) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="rounded-[8px] border border-red-200 bg-red-50 p-3 text-[14px] text-red-800"><i class="fa-solid fa-circle-exclamation mr-2"></i><?= $escape($error) ?></div><?php endif; ?>
 
     <section class="grid gap-4 lg:grid-cols-[1.1fr_.9fr]" data-attendance-location-scope>

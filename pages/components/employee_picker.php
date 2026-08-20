@@ -10,7 +10,7 @@ $pickerEmployees = $employeePickerEmployees ?? [];
 $pickerDepartments = $employeePickerDepartments ?? [];
 $pickerSelectedId = (string) ($employeePickerSelectedId ?? '');
 $pickerJobLabels = $employeePickerJobLabels ?? [];
-$pickerContext = in_array(($employeePickerContext ?? 'payment'), ['payment','payhistory','attendance','attendance_history'], true)
+$pickerContext = in_array(($employeePickerContext ?? 'payment'), ['payment','payhistory','attendance','attendance_history','salary'], true)
     ? (string) $employeePickerContext
     : 'payment';
 $pickerCurrentPeriodKey = (string) ($employeePickerCurrentPeriodKey ?? '');
@@ -27,6 +27,7 @@ $pickerDescription = match ($pickerContext) {
     'payhistory' => 'ค้นหาและเลือกพนักงานเพื่อดูประวัติการจ่ายเงินเดือน',
     'attendance' => 'ค้นหาและเลือกพนักงานเพื่อเช็คชื่อเข้า–ออกงาน',
     'attendance_history' => 'ค้นหาและเลือกพนักงานเพื่อดูประวัติการเข้างาน',
+    'salary' => 'ค้นหาและเลือกพนักงานเพื่อกำหนดเงินเดือนพื้นฐาน',
     default => 'ค้นหาและเลือกพนักงานที่ต้องการจ่ายเงินเดือน',
 };
 ?>
@@ -52,7 +53,7 @@ $pickerDescription = match ($pickerContext) {
                 <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-[#a39e98]" aria-hidden="true"></i>
                 <input id="employeePickerSearch" type="search" data-employee-picker-search class="w-full min-h-12 rounded-[9px] border border-[#e6e6e6] bg-white pl-11 pr-4 text-[15px] outline-none focus:border-[#0075de]" placeholder="ค้นหาชื่อ รหัสพนักงาน แผนก หรือตำแหน่ง...">
             </div>
-            <div class="grid grid-cols-1 gap-2 <?= $pickerContext === 'payment' ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-[minmax(0,1fr)_auto]' ?> sm:items-center">
+            <div class="grid grid-cols-1 gap-2 <?= in_array($pickerContext, ['payment','salary'], true) ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]' : 'sm:grid-cols-[minmax(0,1fr)_auto]' ?> sm:items-center">
                 <label class="sr-only" for="employeePickerDepartment">กรองตามแผนก</label>
                 <select id="employeePickerDepartment" data-employee-picker-department class="w-full min-h-11 rounded-[8px] border border-[#e6e6e6] bg-white px-3 text-[14px]">
                     <option value="">ทุกแผนก</option>
@@ -66,6 +67,13 @@ $pickerDescription = match ($pickerContext) {
                         <option value="">ทุกสถานะ</option>
                         <option value="pending">รอจ่าย</option>
                         <option value="paid">จ่ายแล้ว</option>
+                    </select>
+                <?php elseif ($pickerContext === 'salary'): ?>
+                    <label class="sr-only" for="employeePickerStatus">กรองตามสถานะเงินเดือน</label>
+                    <select id="employeePickerStatus" data-employee-picker-status class="w-full min-h-11 rounded-[8px] border border-[#e6e6e6] bg-white px-3 text-[14px]">
+                        <option value="">ทั้งหมด</option>
+                        <option value="unconfigured">ยังไม่กำหนด</option>
+                        <option value="configured">กำหนดแล้ว</option>
                     </select>
                 <?php endif; ?>
                 <p class="text-right text-[13px] text-[#615d59] whitespace-nowrap"><span data-employee-picker-count><?= count($pickerEmployees) ?></span> คน</p>
@@ -98,6 +106,7 @@ $pickerDescription = match ($pickerContext) {
                         data-employee-fund="<?= $pickerEscape($employee['p_fund'] ?? 0) ?>"
                         data-employee-paid-periods="<?= $pickerEscape($paidPeriods) ?>"
                         data-employee-history-count="<?= $historyCount ?>"
+                        data-employee-salary-status="<?= isset($employee['basic_salary']) && $employee['basic_salary'] !== null ? 'configured' : 'unconfigured' ?>"
                         data-employee-search="<?= $pickerEscape(mb_strtolower($searchText, 'UTF-8')) ?>"
                         class="grid gap-3 px-4 py-4 transition-colors sm:px-5 md:grid-cols-[minmax(0,1fr)_minmax(130px,.55fr)_minmax(120px,.4fr)_auto] md:items-center <?= $isSelected ? 'bg-[#eef6fd]' : 'bg-white' ?>"
                     >
@@ -116,7 +125,14 @@ $pickerDescription = match ($pickerContext) {
                         <div class="flex items-center justify-between gap-3 md:block">
                             <?php if ($pickerContext === 'payment'): ?>
                                 <span class="text-[12px] text-[#615d59] md:block">เงินเดือน</span>
-                                <span class="font-bold">฿<?= number_format((float) ($employee['basic_salary'] ?? 0)) ?></span>
+                                <?php if (isset($employee['basic_salary']) && $employee['basic_salary'] !== null): ?><span class="font-bold">฿<?= number_format((float)$employee['basic_salary'], 2) ?></span><?php else: ?><span class="text-[12px] font-semibold text-amber-700">ยังไม่ได้กำหนด</span><?php endif; ?>
+                            <?php elseif ($pickerContext === 'salary'): ?>
+                                <span class="text-[12px] text-[#615d59] md:block">เงินเดือนปัจจุบัน</span>
+                                <?php if (isset($employee['basic_salary']) && $employee['basic_salary'] !== null): ?>
+                                    <span class="font-bold">฿<?= number_format((float) $employee['basic_salary'], 2) ?></span>
+                                <?php else: ?>
+                                    <span class="text-[12px] font-semibold text-amber-700">ยังไม่ได้กำหนดเงินเดือน</span>
+                                <?php endif; ?>
                             <?php elseif ($pickerContext === 'payhistory'): ?>
                                 <span class="text-[12px] text-[#615d59] md:block">ประวัติการจ่าย</span>
                                 <span class="font-semibold <?= $historyCount ? 'text-[#31302e]' : 'text-[#8a8580]' ?>"><?= $historyCount ? $historyCount . ' รายการ' : 'ยังไม่มีประวัติ' ?></span>
@@ -138,8 +154,8 @@ $pickerDescription = match ($pickerContext) {
                             <?php elseif ($isSelected): ?>
                                 <button type="button" disabled class="min-h-10 min-w-[96px] rounded-[7px] border border-[#b7d6f1] bg-[#eef6fd] px-3 text-[13px] font-semibold text-[#0075de]">✓ เลือกอยู่</button>
                             <?php else: ?>
-                                <?php $pickerRoute = match ($pickerContext) { 'attendance'=>'/attendance', 'attendance_history'=>'/attendance/history', default=>'/employee/payhistory' }; ?>
-                                <a href="<?= $pickerEscape($pickerRoute) ?>?employee_id=<?= rawurlencode($employeeId) ?><?= $pickerExtraQuery !== '' ? '&amp;' . $pickerEscape($pickerExtraQuery) : '' ?>" hx-push-url="true" data-select-history-employee class="min-h-10 min-w-[96px] inline-flex items-center justify-center rounded-[7px] border border-[#0075de] bg-white px-3 text-[13px] font-semibold text-[#0075de] hover:bg-[#eef6fd]">เลือก</a>
+                                <?php $pickerRoute = match ($pickerContext) { 'attendance'=>'/attendance', 'attendance_history'=>'/attendance/history', 'salary'=>'/employee/setsalary', default=>'/employee/payhistory' }; ?>
+                                <a href="<?= $pickerEscape($pickerRoute) ?>?employee_id=<?= rawurlencode($employeeId) ?><?= $pickerExtraQuery !== '' ? '&amp;' . $pickerEscape($pickerExtraQuery) : '' ?>" <?= $pickerContext === 'salary' ? 'hx-get="/employee/setsalary?employee_id='.rawurlencode($employeeId).'" hx-target="#salary-workspace" hx-select="#salary-workspace" hx-swap="outerHTML" hx-push-url="false"' : 'hx-push-url="true"' ?> data-select-history-employee class="min-h-10 min-w-[96px] inline-flex items-center justify-center rounded-[7px] border border-[#0075de] bg-white px-3 text-[13px] font-semibold text-[#0075de] hover:bg-[#eef6fd]">เลือก</a>
                             <?php endif; ?>
                         </div>
                     </article>

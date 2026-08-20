@@ -1,6 +1,7 @@
 <?php
 $title = "ภาพรวมระบบ - ระบบบริหารเงินเดือน";
 require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/salary.php';
 
 if (!isset($_SESSION['username'])) {
     header("Location: /login");
@@ -43,8 +44,9 @@ function dashboardScalar(mysqli $connection, string $sql): float
 
 $totalEmployees = (int) dashboardScalar($connection, "SELECT COUNT(*) FROM employee");
 $totalDepartments = (int) dashboardScalar($connection, "SELECT COUNT(*) FROM department");
-$basePayroll = dashboardScalar($connection, "SELECT COALESCE(SUM(j.basic_salary), 0) FROM employee e INNER JOIN job j ON e.jobtitle = j.Job_Title");
-$averageSalary = dashboardScalar($connection, "SELECT COALESCE(AVG(j.basic_salary), 0) FROM employee e INNER JOIN job j ON e.jobtitle = j.Job_Title");
+$todaySalaryDate = date('Y-m-d');
+$basePayroll = dashboardScalar($connection, "SELECT COALESCE(SUM((SELECT es.salary_amount FROM employee_salaries es WHERE es.employee_id=e.Employee_id AND es.effective_from<='{$todaySalaryDate}' ORDER BY es.effective_from DESC,es.id DESC LIMIT 1)),0) FROM employee e");
+$averageSalary = dashboardScalar($connection, "SELECT COALESCE(AVG((SELECT es.salary_amount FROM employee_salaries es WHERE es.employee_id=e.Employee_id AND es.effective_from<='{$todaySalaryDate}' ORDER BY es.effective_from DESC,es.id DESC LIMIT 1)),0) FROM employee e");
 
 $paidEmployees = 0;
 $paidAmount = 0.0;
@@ -55,7 +57,8 @@ if ($paidResult && $paidRow = mysqli_fetch_assoc($paidResult)) {
 }
 
 $pendingEmployees = max($totalEmployees - $paidEmployees, 0);
-$pendingBasePayroll = dashboardScalar($connection, "SELECT COALESCE(SUM(j.basic_salary), 0) FROM employee e INNER JOIN job j ON e.jobtitle = j.Job_Title WHERE NOT EXISTS (SELECT 1 FROM payment p WHERE p.emp_id = e.Employee_id AND p.`year` = $selectedYear AND LOWER(p.`month`) = '$escapedMonth')");
+$selectedSalaryDate = salaryPeriodDate($selectedYear, $selectedMonth);
+$pendingBasePayroll = dashboardScalar($connection, "SELECT COALESCE(SUM((SELECT es.salary_amount FROM employee_salaries es WHERE es.employee_id=e.Employee_id AND es.effective_from<='{$selectedSalaryDate}' ORDER BY es.effective_from DESC,es.id DESC LIMIT 1)),0) FROM employee e WHERE NOT EXISTS (SELECT 1 FROM payment p WHERE p.emp_id=e.Employee_id AND p.`year`=$selectedYear AND LOWER(p.`month`)='$escapedMonth')");
 $paymentProgress = $totalEmployees > 0 ? min(100, round(($paidEmployees / $totalEmployees) * 100)) : 0;
 
 $departmentRows = $departmentLabels = $departmentCounts = [];
@@ -105,7 +108,7 @@ $trendTotal = array_sum($payrollTotals);
 $chartJsonFlags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 
-<div class="space-y-4 min-w-0">
+<div class="space-y-4 min-w-0" data-dashboard-page>
     <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div class="min-w-0">
             <h1 class="text-xl font-semibold text-[#202223]">ภาพรวมระบบ</h1>

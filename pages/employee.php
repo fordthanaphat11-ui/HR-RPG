@@ -7,7 +7,8 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
-$sql = "SELECT employee.*, job.basic_salary FROM employee INNER JOIN job ON employee.jobtitle = job.Job_Title";
+$salaryDate = date('Y-m-d');
+$sql = "SELECT employee.*, (SELECT es.salary_amount FROM employee_salaries es WHERE es.employee_id=employee.Employee_id AND es.effective_from<='$salaryDate' ORDER BY es.effective_from DESC,es.id DESC LIMIT 1) AS basic_salary FROM employee";
 $result = mysqli_query($connection, $sql);
 $employees = [];
 while ($row = mysqli_fetch_assoc($result)) {
@@ -71,7 +72,7 @@ sort($departments);
                                 </div>
                                 <dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[14px]">
                                     <dt class="text-[#615d59]">แผนก</dt><dd class="text-right font-medium break-words"><?= htmlspecialchars($row['Depart_id']) ?></dd>
-                                    <dt class="text-[#615d59]">เงินเดือน</dt><dd class="text-right font-bold">฿<?= number_format($row['basic_salary']) ?></dd>
+                                    <dt class="text-[#615d59]">เงินเดือน</dt><dd class="text-right font-bold"><?= $row['basic_salary'] !== null ? '฿'.number_format((float)$row['basic_salary']) : 'ยังไม่กำหนด' ?></dd>
                                     <dt class="text-[#615d59]">โทรศัพท์</dt><dd class="text-right break-all"><?= htmlspecialchars($row['Phone_no']) ?></dd>
                                 </dl>
                             </div>
@@ -126,7 +127,7 @@ sort($departments);
                                         <?= htmlspecialchars($jobLabels[$row['jobtitle']] ?? $row['jobtitle']) ?>
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 font-medium">฿<?= number_format($row['basic_salary']) ?></td>
+                                <td class="px-4 py-3 font-medium"><?= $row['basic_salary'] !== null ? '฿'.number_format((float)$row['basic_salary']) : '<span class="text-amber-700">ยังไม่กำหนด</span>' ?></td>
                                 <td class="px-4 py-3"><?= htmlspecialchars($row['Depart_id']) ?></td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap space-x-3">
                                     <a href="/employee/update?id=<?= $row['Employee_id'] ?>" class="text-[#0075de] hover:text-[#005bab] font-medium underline underline-offset-2">

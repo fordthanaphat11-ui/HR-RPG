@@ -3,6 +3,7 @@ $title = 'จ่ายเงินเดือน - ระบบบริหา�
 require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/payroll.php';
 require_once __DIR__ . '/../lib/attendance.php';
+require_once __DIR__ . '/../lib/salary.php';
 
 if (!isset($_SESSION['username'])) {
     header('Location: /login');
@@ -12,6 +13,7 @@ if (!isset($_SESSION['username'])) {
 $error = '';
 $success = (string) ($_SESSION['payroll_success'] ?? '');
 unset($_SESSION['payroll_success']);
+if ($success !== '') appToast('success', $success);
 $months = payrollMonths();
 $thaiMonths = payrollThaiMonths();
 $settings = getPayrollSettings($connection);
@@ -68,11 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $paymentNote = mb_substr(trim((string) ($_POST['payment_note'] ?? '')), 0, 500, 'UTF-8');
 
         mysqli_begin_transaction($connection);
-        $employeeStmt = mysqli_prepare($connection, 'SELECT e.Employee_id, e.Name, e.loan, e.p_fund, j.basic_salary FROM employee e INNER JOIN job j ON e.jobtitle=j.Job_Title WHERE e.Employee_id=? FOR UPDATE');
+        $employeeStmt = mysqli_prepare($connection, 'SELECT e.Employee_id, e.Name, e.loan, e.p_fund FROM employee e WHERE e.Employee_id=? FOR UPDATE');
         mysqli_stmt_bind_param($employeeStmt, 'i', $employeeId);
         mysqli_stmt_execute($employeeStmt);
         $employee = mysqli_fetch_assoc(mysqli_stmt_get_result($employeeStmt));
-        if (!$employee) throw new RuntimeException('ไม่พบพนักงาน หรือยังไม่ได้กำหนดเงินเดือนพื้นฐานของตำแหน่งนี้');
+        if (!$employee) throw new RuntimeException('ไม่พบพนักงานที่เลือก');
+        $periodDate = salaryPeriodDate($paymentYear, $month);
+        $effectiveSalary = salaryEffectiveAt($connection, $employeeId, $periodDate, true);
+        if (!$effectiveSalary) throw new RuntimeException('ยังไม่ได้กำหนดเงินเดือนพื้นฐานสำหรับงวดนี้ กรุณากำหนดเงินเดือนก่อนจ่าย');
+        $employee['basic_salary'] = $effectiveSalary['salary_amount'];
 
         $attendanceMetrics = attendancePeriodMetrics($connection, $employeeId, $paymentYear, $month);
         $absenceDays = (float) $attendanceMetrics['absence_days'];
@@ -86,8 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $settings = getPayrollSettings($connection);
         $calculation = calculatePayroll($employee, $settings, ['absence_days'=>$absenceDays,'late_count'=>$lateCount,'late_minutes'=>$lateMinutes,'source'=>'attendance'], $manualAdditions, $manualDeductions, (float)$overtimeHours);
-        if ($calculation['net_salary'] < 0) throw new RuntimeException('ยอดหักมากกว่ายอดรายได้ กรุณาตรวจสอบรายการก่อนบันทึก');
-
         $nextResult = mysqli_query($connection, 'SELECT pay_no FROM payment ORDER BY pay_no DESC LIMIT 1 FOR UPDATE');
         $lastPayment = $nextResult ? mysqli_fetch_assoc($nextResult) : null;
         $payNo = (int) ($lastPayment['pay_no'] ?? 0) + 1;
@@ -138,9 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_commit($connection);
         $nextEmployee = findNextUnpaidEmployee($connection, $paymentYear, $month, (string) $employee['Name'], $employeeId);
         if ($nextEmployee) {
-            $_SESSION['payroll_success'] = 'บันทึกเงินเดือนของ '.$employee['Name'].' เรียบร้อยแล้ว (เลขที่ '.$payNo.') ระบบเลือกพนักงานคนถัดไปให้แล้ว';
+            appFlashToast('success', 'จ่ายเงินเดือนให้ '.$employee['Name'].' เรียบร้อยแล้ว (เลขที่ '.$payNo.') ระบบเลือกพนักงานคนถัดไปให้แล้ว');
         } else {
-            $_SESSION['payroll_success'] = 'บันทึกเงินเดือนของ '.$employee['Name'].' เรียบร้อยแล้ว (เลขที่ '.$payNo.') และจ่ายครบทุกคนในงวดนี้แล้ว';
+            appFlashToast('success', 'จ่ายเงินเดือนให้ '.$employee['Name'].' เรียบร้อยแล้ว (เลขที่ '.$payNo.') และจ่ายครบทุกคนในงวดนี้แล้ว');
         }
         $redirect = '/employee/payment?year='.rawurlencode((string)$paymentYear).'&month='.rawurlencode($month);
         if ($nextEmployee) $redirect .= '&employee_id='.rawurlencode((string)$nextEmployee['Employee_id']);
@@ -149,35 +153,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $exception) {
         if (mysqli_errno($connection) || mysqli_thread_id($connection)) @mysqli_rollback($connection);
         $error = $exception->getMessage();
+        appToast('error', $error);
     }
 }
 
-// One aggregate query supplies employee, department, salary and every paid period.
-$employeeSql = "SELECT
-                    e.Employee_id,
-                    e.Name,
-                    e.jobtitle,
-                    e.Depart_id,
-                    e.loan,
-                    e.p_fund,
-                    d.Depart_name,
-                    j.basic_salary,
-                    GROUP_CONCAT(DISTINCT CONCAT(p.year, '|', LOWER(p.month)) SEPARATOR ',') AS paid_periods
-                FROM employee e
-                INNER JOIN job j ON e.jobtitle = j.Job_Title
-                LEFT JOIN department d ON e.Depart_id = d.Depart_id
-                LEFT JOIN payment p ON e.Employee_id = p.emp_id
-                GROUP BY
-                    e.Employee_id, e.Name, e.jobtitle, e.Depart_id, e.loan, e.p_fund,
-                    d.Depart_name, j.basic_salary
-                ORDER BY e.Name ASC";
-$employeeResult = mysqli_query($connection, $employeeSql);
-$employees = [];
-if ($employeeResult) {
-    while ($employee = mysqli_fetch_assoc($employeeResult)) {
-        $employees[] = $employee;
-    }
-}
+$periodDate = salaryPeriodDate((int) $formYear, $formMonth);
+$employees = salaryEmployeeList($connection, $periodDate);
+$paidResult = mysqli_query($connection, "SELECT emp_id, GROUP_CONCAT(DISTINCT CONCAT(year, '|', LOWER(month)) SEPARATOR ',') AS paid_periods FROM payment GROUP BY emp_id");
+$paidPeriodsByEmployee = [];
+while ($paidResult && $paid = mysqli_fetch_assoc($paidResult)) $paidPeriodsByEmployee[(string)$paid['emp_id']] = (string)$paid['paid_periods'];
+foreach ($employees as &$employee) $employee['paid_periods'] = $paidPeriodsByEmployee[(string)$employee['Employee_id']] ?? '';
+unset($employee);
 
 $departmentResult = mysqli_query($connection, "SELECT Depart_id, Depart_name FROM department ORDER BY Depart_name ASC");
 $departments = [];
@@ -230,6 +216,7 @@ function paymentEscape(mixed $value): string
 $currentPeriodKey = $formYear . '|' . $formMonth;
 $selectedPaidPeriods = $selectedEmployee ? array_filter(explode(',', (string) ($selectedEmployee['paid_periods'] ?? ''))) : [];
 $selectedAlreadyPaid = $selectedEmployee && in_array($currentPeriodKey, $selectedPaidPeriods, true);
+$selectedHasSalary = $selectedEmployee && $selectedEmployee['basic_salary'] !== null;
 ?>
 
 <div class="w-full space-y-4">
@@ -244,11 +231,6 @@ $selectedAlreadyPaid = $selectedEmployee && in_array($currentPeriodKey, $selecte
         </div>
     <?php endif; ?>
 
-    <?php if ($success): ?>
-        <div class="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3.5 text-[14px] text-emerald-800" role="status">
-            <i class="fa-solid fa-circle-check mr-2" aria-hidden="true"></i><?= paymentEscape($success) ?>
-        </div>
-    <?php endif; ?>
 
     <form id="payrollPaymentForm" method="post" action="/employee/payment" hx-boost="false" class="space-y-5 sm:space-y-6">
         <section aria-labelledby="employeeSelectorTitle">
@@ -328,23 +310,28 @@ $selectedAlreadyPaid = $selectedEmployee && in_array($currentPeriodKey, $selecte
             </div>
 
             <div id="paymentFields" class="<?= $selectedEmployee ? 'block' : 'hidden' ?> p-4 sm:p-5 lg:p-6"
-                data-payroll-calculator data-attendance-powered="1" data-attendance-source="attendance" data-base-salary="<?= $selectedEmployee ? paymentEscape($selectedEmployee['basic_salary']) : '0' ?>"
+                data-payroll-calculator data-attendance-powered="1" data-attendance-source="attendance" data-base-salary="<?= $selectedHasSalary ? paymentEscape($selectedEmployee['basic_salary']) : '0' ?>"
                 data-loan-balance="<?= $selectedEmployee ? paymentEscape($selectedEmployee['loan']) : '0' ?>"
                 data-fund-balance="<?= $selectedEmployee ? paymentEscape($selectedEmployee['p_fund']) : '0' ?>"
                 data-absence-enabled="<?= !empty($settings['absence_deduction_enabled']) ? '1' : '0' ?>"
+                data-absence-mode="<?= paymentEscape($settings['absence_deduction_mode']) ?>"
                 data-absence-rate="<?= paymentEscape($settings['absence_deduction_per_day']) ?>"
+                data-absence-divisor="<?= paymentEscape($settings['absence_salary_divisor_days']) ?>"
                 data-late-mode="<?= paymentEscape($settings['late_deduction_mode']) ?>"
                 data-late-occurrence-rate="<?= paymentEscape($settings['late_deduction_per_occurrence']) ?>"
                 data-late-interval-minutes="<?= paymentEscape($settings['late_interval_minutes']) ?>"
                 data-late-interval-rate="<?= paymentEscape($settings['late_deduction_per_interval']) ?>"
+                data-late-minute-rate="<?= paymentEscape($settings['late_deduction_per_minute']) ?>"
                 data-late-rounding="<?= paymentEscape($settings['late_rounding_mode']) ?>"
                 data-late-grace-minutes="<?= paymentEscape($settings['late_grace_minutes']) ?>"
-                data-late-maximum="<?= paymentEscape($settings['max_late_deduction'] ?? '') ?>">
+                data-late-maximum="<?= paymentEscape($settings['max_late_deduction'] ?? '') ?>"
+                data-allow-negative-net="<?= !empty($settings['allow_negative_net_salary']) ? '1' : '0' ?>">
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div class="rounded-[9px] border border-[#e6e6e6] bg-[#f6f5f4] p-4"><p class="text-[13px] text-[#615d59]">พนักงาน</p><p data-payment-employee-name class="mt-1 font-bold"><?= $selectedEmployee ? paymentEscape($selectedEmployee['Name']) : '' ?></p><p class="text-[13px] text-[#615d59]">รหัส <span data-payment-employee-code><?= $selectedEmployee ? paymentEscape($selectedEmployee['Employee_id']) : '' ?></span></p></div>
-                    <div class="rounded-[9px] border border-[#d9e9f8] bg-[#f7fbff] p-4"><p class="text-[13px] text-[#615d59]">เงินเดือนพื้นฐาน</p><p data-payment-employee-salary class="mt-1 text-[20px] font-extrabold text-[#0075de]"><?= $selectedEmployee ? '฿'.number_format((float)$selectedEmployee['basic_salary'],2) : '' ?></p></div>
+                    <div class="rounded-[9px] border border-[#d9e9f8] bg-[#f7fbff] p-4"><p class="text-[13px] text-[#615d59]">เงินเดือนพื้นฐานสำหรับงวดนี้</p><p data-payment-employee-salary class="mt-1 text-[20px] font-extrabold <?= $selectedHasSalary?'text-[#0075de]':'text-amber-700' ?>"><?= $selectedHasSalary ? '฿'.number_format((float)$selectedEmployee['basic_salary'],2) : 'ยังไม่ได้กำหนด' ?></p></div>
                 </div>
                 <div data-selected-paid-warning class="<?= $selectedAlreadyPaid ? 'flex' : 'hidden' ?> mt-4 items-start gap-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-800"><i class="fa-solid fa-circle-check mt-0.5"></i><span>พนักงานคนนี้ได้รับการจ่ายเงินเดือนสำหรับงวดที่เลือกแล้ว กรุณาเลือกงวดหรือพนักงานอื่น</span></div>
+                <?php if ($selectedEmployee && !$selectedHasSalary): ?><div class="mt-4 flex flex-col gap-3 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-900 sm:flex-row sm:items-center sm:justify-between"><span><i class="fa-solid fa-triangle-exclamation mr-2"></i>ยังไม่ได้กำหนดเงินเดือนพื้นฐานสำหรับงวดนี้</span><a href="/employee/setsalary?employee_id=<?= rawurlencode((string)$selectedEmployee['Employee_id']) ?>" class="inline-flex min-h-9 items-center justify-center rounded-md border border-amber-300 bg-white px-3 font-semibold">กำหนดเงินเดือน</a></div><?php endif; ?>
 
                 <section class="mt-5" aria-labelledby="periodTitle"><h3 id="periodTitle" class="text-[15px] font-bold">งวดการจ่าย</h3>
                     <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -401,7 +388,7 @@ $selectedAlreadyPaid = $selectedEmployee && in_array($currentPeriodKey, $selecte
                         <h3 class="font-bold">สรุปการคำนวณ</h3><p class="mt-1 text-[12px] text-[#615d59]">อัปเดตทันที และระบบจะคำนวณซ้ำก่อนบันทึก</p>
                         <dl class="mt-5 space-y-3 text-[14px]"><div class="flex justify-between"><dt>เงินเดือนพื้นฐาน</dt><dd data-summary-base class="font-semibold">฿0.00</dd></div><div class="flex justify-between text-emerald-700"><dt>รายรับเพิ่มเติม</dt><dd data-summary-additions class="font-semibold">+฿0.00</dd></div><div class="flex justify-between text-red-700"><dt>รายการหัก</dt><dd data-summary-deductions class="font-semibold">-฿0.00</dd></div><div class="border-t border-[#b7d6f1] pt-4"><dt class="font-bold">ยอดสุทธิ</dt><dd data-summary-net class="mt-1 text-[28px] font-extrabold text-[#0075de]">฿0.00</dd></div></dl>
                         <p data-negative-net class="hidden mt-3 rounded-[7px] bg-red-50 p-3 text-[12px] text-red-700">ยอดสุทธิติดลบ กรุณาตรวจสอบรายการหัก</p>
-                        <button type="submit" data-payment-submit <?= (!$selectedEmployee||$selectedAlreadyPaid)?'disabled':'' ?> class="mt-5 min-h-12 w-full rounded-[8px] bg-[#0075de] px-5 font-semibold text-white disabled:bg-[#a9c9e6]"><i class="fa-solid fa-check mr-2"></i><span data-payment-submit-label><?= $selectedAlreadyPaid?'จ่ายแล้วสำหรับงวดนี้':'ตรวจสอบและยืนยัน' ?></span></button>
+                        <button type="submit" data-payment-submit <?= (!$selectedEmployee||$selectedAlreadyPaid||!$selectedHasSalary)?'disabled':'' ?> class="mt-5 min-h-12 w-full rounded-[8px] bg-[#0075de] px-5 font-semibold text-white disabled:bg-[#a9c9e6]"><i class="fa-solid fa-check mr-2"></i><span data-payment-submit-label><?= $selectedAlreadyPaid?'จ่ายแล้วสำหรับงวดนี้':(!$selectedHasSalary?'ต้องกำหนดเงินเดือนก่อน':'ตรวจสอบและยืนยัน') ?></span></button>
                         <p class="mt-3 text-center text-[11px] text-[#615d59]"><i class="fa-solid fa-shield-halved mr-1"></i>เก็บ snapshot เพื่อการตรวจสอบย้อนหลัง</p>
                     </aside>
                 </div>

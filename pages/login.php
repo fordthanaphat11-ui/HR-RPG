@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $admin = mysqli_fetch_assoc(mysqli_stmt_get_result($adminStmt));
     mysqli_stmt_close($adminStmt);
 
-    if ($admin && hash_equals((string) $admin['password'], $password)) {
+    if ($admin && (password_verify($password, (string) $admin['password']) || hash_equals((string) $admin['password'], $password))) {
         authStartAdminSession((string) $admin['username']);
         authRedirect('/');
     }
@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือบัญชีถูกระงับ';
+    appToast('error', $error);
 }
 ?>
 

@@ -13,7 +13,8 @@ if (isset($_GET['id'])) {
     mysqli_query($connection, "DELETE FROM payment WHERE emp_id='$id'");
     
     // Delete employee
-    mysqli_query($connection, "DELETE FROM employee WHERE Employee_id='$id'");
+    if (mysqli_query($connection, "DELETE FROM employee WHERE Employee_id='$id'")) appFlashToast('success', 'ลบพนักงานเรียบร้อยแล้ว');
+    else appFlashToast('error', 'ไม่สามารถลบพนักงานได้');
 }
 
 header("Location: /employee");

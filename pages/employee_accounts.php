@@ -66,6 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+if ($message !== '') appToast('success', $message);
+if ($error !== '') appToast('error', $error);
 
 $result = mysqli_query($connection, "SELECT e.Employee_id, e.Name, e.Email, e.jobtitle, d.Depart_name,
                                             a.username, a.is_active, a.must_change_password, a.last_login_at
@@ -85,7 +87,6 @@ $escape = static fn($value): string => htmlspecialchars((string) $value, ENT_QUO
         <div class="flex gap-2 text-[12px]"><span class="rounded-full bg-white px-3 py-1.5 border border-[#dedede]">มีบัญชี <?= $accountCount ?> คน</span><span class="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700">ใช้งาน <?= $activeCount ?> คน</span></div>
     </header>
 
-    <?php if ($message): ?><div class="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-[14px] text-emerald-800"><i class="fa-solid fa-circle-check mr-2"></i><?= $escape($message) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="rounded-[8px] border border-red-200 bg-red-50 p-3 text-[14px] text-red-800"><i class="fa-solid fa-circle-exclamation mr-2"></i><?= $escape($error) ?></div><?php endif; ?>
 
     <section class="overflow-hidden rounded-lg border border-[#dedede] bg-white">

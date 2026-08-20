@@ -15,8 +15,7 @@ function attendanceLocationSettingsRedirect(string $path): never
 }
 
 $error = '';
-$success = (string) ($_SESSION['attendance_location_flash'] ?? '');
-unset($_SESSION['attendance_location_flash']);
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -34,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = mysqli_prepare($connection, 'UPDATE attendance_location_settings SET enforce_geofence=?,require_check_in=?,require_check_out=?,max_accuracy_meters=?,updated_by=? WHERE id=1');
             mysqli_stmt_bind_param($stmt, 'iiids', $enforce, $requireIn, $requireOut, $maxAccuracy, $username);
             mysqli_stmt_execute($stmt);
-            $_SESSION['attendance_location_flash'] = 'บันทึกนโยบายตำแหน่งเรียบร้อยแล้ว';
+            appFlashToast('success', 'บันทึกนโยบายตำแหน่งเรียบร้อยแล้ว');
             attendanceLocationSettingsRedirect('/settings/attendance/location');
         }
 
@@ -59,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mysqli_stmt_bind_param($stmt, 'sssisis', $name, $description, $polygonJson, $isActive, $scopeType, $departmentId, $username);
             }
             mysqli_stmt_execute($stmt);
-            $_SESSION['attendance_location_flash'] = 'บันทึกพื้นที่เช็คชื่อเรียบร้อยแล้ว';
+            appFlashToast('success', $geofenceId > 0 ? 'อัปเดตพื้นที่เช็คชื่อเรียบร้อยแล้ว' : 'สร้างพื้นที่เช็คชื่อเรียบร้อยแล้ว');
             attendanceLocationSettingsRedirect('/settings/attendance/location');
         }
 
@@ -75,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newStatus = (int) $geofence['is_active'] === 1 ? 0 : 1;
                 $stmt = mysqli_prepare($connection, 'UPDATE attendance_geofences SET is_active=? WHERE id=?');
                 mysqli_stmt_bind_param($stmt, 'ii', $newStatus, $geofenceId); mysqli_stmt_execute($stmt);
-                $_SESSION['attendance_location_flash'] = ($newStatus ? 'เปิด' : 'ปิด') . 'ใช้งานพื้นที่ “' . $geofence['name'] . '” แล้ว';
+                appFlashToast('success', ($newStatus ? 'เปิด' : 'ปิด') . 'ใช้งานพื้นที่ “' . $geofence['name'] . '” แล้ว');
             } else {
                 $usage = mysqli_prepare($connection, 'SELECT COUNT(*) AS usage_count FROM attendance WHERE check_in_geofence_id=? OR check_out_geofence_id=?');
                 mysqli_stmt_bind_param($usage, 'ii', $geofenceId, $geofenceId); mysqli_stmt_execute($usage);
@@ -83,11 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($usageCount > 0) {
                     $stmt = mysqli_prepare($connection, 'UPDATE attendance_geofences SET is_active=0 WHERE id=?');
                     mysqli_stmt_bind_param($stmt, 'i', $geofenceId); mysqli_stmt_execute($stmt);
-                    $_SESSION['attendance_location_flash'] = 'พื้นที่มีประวัติการใช้งาน จึงปิดใช้งานแทนการลบเพื่อรักษาหลักฐานเดิม';
+                    appFlashToast('warning', 'พื้นที่มีประวัติการใช้งาน จึงปิดใช้งานแทนการลบเพื่อรักษาหลักฐานเดิม');
                 } else {
                     $stmt = mysqli_prepare($connection, 'DELETE FROM attendance_geofences WHERE id=?');
                     mysqli_stmt_bind_param($stmt, 'i', $geofenceId); mysqli_stmt_execute($stmt);
-                    $_SESSION['attendance_location_flash'] = 'ลบพื้นที่เช็คชื่อเรียบร้อยแล้ว';
+                    appFlashToast('success', 'ลบพื้นที่เช็คชื่อเรียบร้อยแล้ว');
                 }
             }
             attendanceLocationSettingsRedirect('/settings/attendance/location');
@@ -96,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new InvalidArgumentException('คำสั่งตั้งค่าไม่ถูกต้อง');
     } catch (Throwable $exception) {
         $error = $exception->getMessage();
+        appRequestToast('error', $error);
     }
 }
 
@@ -127,7 +127,6 @@ $mapConfig = ['geofences'=>$mapGeofences,'default_center'=>['lat'=>$defaultLat,'
 
 <div class="w-full space-y-4" data-geofence-settings-page>
     <header class="flex flex-col gap-3 border-b border-[#dedede] pb-3 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-medium text-[#6d7175]">ตั้งค่าระบบ</p><h1 class="text-lg font-semibold">พื้นที่เช็คชื่อ</h1><p class="mt-0.5 text-sm text-[#6d7175]">กำหนดตำแหน่งที่อนุญาตให้พนักงานเช็คชื่อเข้า–ออกงาน</p></div><button type="button" data-geofence-add class="min-h-9 rounded-md bg-[#303030] px-3 text-sm font-medium text-white"><i class="fa-solid fa-plus mr-2"></i>สร้างพื้นที่</button></header>
-    <?php if ($success): ?><div role="status" class="fixed right-4 top-16 z-[70] max-w-sm rounded-md border border-emerald-200 bg-white px-4 py-3 text-sm text-emerald-700 shadow-lg"><i class="fa-solid fa-circle-check mr-2"></i><?= $escape($success) ?></div><?php endif; ?>
     <?php if ($error): ?><div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"><?= $escape($error) ?></div><?php endif; ?>
     <?php if ((int)$locationSettings['enforce_geofence'] === 1 && $activeCount === 0): ?><div class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-2"></i>ยังไม่มีพื้นที่เช็คชื่อที่เปิดใช้งาน พนักงานจะยังเช็คชื่อไม่ได้</div><?php endif; ?>
 

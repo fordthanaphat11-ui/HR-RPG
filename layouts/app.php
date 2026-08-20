@@ -3,6 +3,7 @@ $pageLabel = trim(explode(' - ', $title ?? 'ระบบบริหารเง
 $isEmployeePortal = authIsEmployee();
 $currentUserName = authDisplayName();
 $currentUserRole = $isEmployeePortal ? 'พนักงาน' : 'ผู้ดูแลระบบ';
+$appToasts = appConsumeToasts();
 $navigation = $isEmployeePortal ? [
     ['section' => 'บัญชีของฉัน', 'href' => '/me', 'label' => 'ภาพรวมของฉัน', 'icon' => 'fa-house-user', 'active' => $path === '/me'],
     ['section' => 'บัญชีของฉัน', 'href' => '/me/attendance', 'label' => 'เช็คชื่อของฉัน', 'icon' => 'fa-fingerprint', 'active' => $path === '/me/attendance'],
@@ -14,6 +15,7 @@ $navigation = $isEmployeePortal ? [
     ['section' => 'บุคลากร', 'href' => '/employee', 'label' => 'รายชื่อพนักงาน', 'icon' => 'fa-users', 'active' => $path === '/employee' || in_array($path, ['/employee/add', '/employee/update'], true)],
     ['section' => 'บุคลากร', 'href' => '/employee/accounts', 'label' => 'บัญชีพนักงาน', 'icon' => 'fa-user-lock', 'active' => $path === '/employee/accounts'],
     ['section' => 'บุคลากร', 'href' => '/attendance', 'label' => 'เช็คชื่อเข้างาน', 'icon' => 'fa-fingerprint', 'active' => $path === '/attendance'],
+    ['section' => 'บุคลากร', 'href' => '/attendance/calendar', 'label' => 'ปฏิทินการเข้างาน', 'icon' => 'fa-calendar-days', 'active' => $path === '/attendance/calendar'],
     ['section' => 'บุคลากร', 'href' => '/attendance/history', 'label' => 'ประวัติการเข้างาน', 'icon' => 'fa-calendar-check', 'active' => $path === '/attendance/history'],
     ['section' => 'บุคลากร', 'href' => '/employee/setsalary', 'label' => 'กำหนดเงินเดือน', 'icon' => 'fa-coins', 'active' => $path === '/employee/setsalary'],
     ['section' => 'เงินเดือน', 'href' => '/employee/payment', 'label' => 'จ่ายเงินเดือน', 'icon' => 'fa-calculator', 'active' => $path === '/employee/payment'],
@@ -22,6 +24,8 @@ $navigation = $isEmployeePortal ? [
     ['section' => 'การตั้งค่า', 'href' => '/settings/payroll', 'label' => 'การคำนวณเงินเดือน', 'icon' => 'fa-sliders', 'active' => $path === '/settings/payroll'],
     ['section' => 'การตั้งค่า', 'href' => '/settings/attendance', 'label' => 'เวลาเข้า–ออกงาน', 'icon' => 'fa-clock', 'active' => $path === '/settings/attendance'],
     ['section' => 'การตั้งค่า', 'href' => '/settings/attendance/location', 'label' => 'พื้นที่เช็คชื่อ', 'icon' => 'fa-map-location-dot', 'active' => $path === '/settings/attendance/location'],
+    ['section' => 'ผู้ดูแลระบบ', 'href' => '/admin/accounts', 'label' => 'จัดการสิทธิ์', 'icon' => 'fa-shield-halved', 'active' => str_starts_with($path, '/admin/accounts')],
+    ['section' => 'ผู้ดูแลระบบ', 'href' => '/admin/password', 'label' => 'เปลี่ยนรหัสผ่าน', 'icon' => 'fa-key', 'active' => $path === '/admin/password'],
 ];
 ?>
 <!DOCTYPE html>
@@ -444,6 +448,7 @@ $navigation = $isEmployeePortal ? [
                 </header>
 
                 <div id="app-content" data-page-title="<?= htmlspecialchars($title ?? 'ระบบบริหารเงินเดือนและบุคลากร') ?>" tabindex="-1" class="flex-1 min-w-0 w-full p-4 lg:p-5">
+                    <?php foreach ($appToasts as $toast): ?><span hidden data-flash-toast data-type="<?= htmlspecialchars((string)($toast['type'] ?? 'info'), ENT_QUOTES, 'UTF-8') ?>" data-message="<?= htmlspecialchars((string)($toast['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-duration="<?= (int)($toast['duration'] ?? 0) ?>"></span><?php endforeach; ?>
                     <?= $content ?>
                 </div>
             </main>
@@ -451,6 +456,7 @@ $navigation = $isEmployeePortal ? [
     <?php else: ?>
         <!-- Login/Guest Layout -->
         <div class="min-h-screen flex items-center justify-center bg-[#f6f5f4] p-4">
+            <?php foreach ($appToasts as $toast): ?><span hidden data-flash-toast data-type="<?= htmlspecialchars((string)($toast['type'] ?? 'info'), ENT_QUOTES, 'UTF-8') ?>" data-message="<?= htmlspecialchars((string)($toast['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-duration="<?= (int)($toast['duration'] ?? 0) ?>"></span><?php endforeach; ?>
             <?= $content ?>
         </div>
     <?php endif; ?>
@@ -472,16 +478,9 @@ $navigation = $isEmployeePortal ? [
     </div>
 
     <div id="globalProgress" aria-hidden="true"></div>
+    <div id="appConfirmModal" class="fixed inset-0 z-[110] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-hidden="true"><div class="absolute inset-0 bg-black/40" data-app-confirm-cancel></div><div class="relative w-full max-w-md rounded-xl border border-[#e6e6e6] bg-white p-5 shadow-2xl"><div class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i></div><h2 id="appConfirmTitle" class="mt-4 text-lg font-bold">ยืนยันการดำเนินการ?</h2><p data-app-confirm-message class="mt-2 text-sm text-[#615d59]"></p><div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" data-app-confirm-cancel class="min-h-10 rounded-md border border-[#d5d3d0] px-4 text-sm font-semibold">ยกเลิก</button><button type="button" data-app-confirm-accept class="min-h-10 rounded-md bg-[#303030] px-4 text-sm font-semibold text-white">ยืนยัน</button></div></div></div>
     <div id="routeStatus" class="sr-only" aria-live="polite"></div>
-    <div id="routeError" class="fixed right-4 bottom-4 z-[95] hidden max-w-sm rounded-[10px] border border-red-200 bg-white p-4 shadow-2xl" role="alert">
-        <div class="flex items-start gap-3">
-            <i class="fa-solid fa-circle-exclamation mt-1 text-red-600" aria-hidden="true"></i>
-            <div class="min-w-0 flex-1"><p class="font-bold">โหลดหน้าไม่สำเร็จ</p><p id="routeErrorMessage" class="mt-1 text-[13px] text-[#615d59]">กรุณาลองใหม่อีกครั้ง</p></div>
-            <button id="routeErrorClose" type="button" class="w-9 h-9 rounded-[7px] hover:bg-[#f6f5f4]" aria-label="ปิดข้อความ"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <button id="routeReloadButton" type="button" class="mt-3 min-h-10 w-full rounded-[7px] bg-[#0075de] px-3 text-white font-medium">โหลดหน้านี้ใหม่</button>
-    </div>
-
+    <div id="hotToastViewport" class="pointer-events-none fixed right-3 top-3 z-[120] flex w-[min(368px,calc(100vw-24px))] flex-col gap-2 sm:right-4 sm:top-4" aria-live="polite" aria-atomic="false"></div>
     <script src="/lib/jquery-4.0.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="/lib/app.js" defer></script>

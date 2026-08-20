@@ -34,8 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($selectedId === '') throw new InvalidArgumentException('กรุณาเลือกพนักงาน');
         $result = attendanceProcessAction($connection, (int) $selectedId, (string) ($_POST['attendance_action'] ?? ''), (string) $_SESSION['username'], $settings, $_POST);
         $feedback = $result['message'];
+        appRequestToast('success', $feedback);
     } catch (Throwable $exception) {
         $error = $exception->getMessage();
+        appRequestToast('error', $error);
     }
 }
 
@@ -66,7 +68,6 @@ $notInCount = max(0, count($activeEmployees) - $presentCount);
     </header>
 
     <section id="attendance-workspace" class="space-y-4">
-        <?php if ($feedback): ?><div role="status" class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700"><i class="fa-solid fa-circle-check mr-2"></i><?= $escape($feedback) ?></div><?php endif; ?>
         <?php if ($error): ?><div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"><i class="fa-solid fa-circle-exclamation mr-2"></i><?= $escape($error) ?></div><?php endif; ?>
 
         <section aria-labelledby="attendanceEmployeeTitle">

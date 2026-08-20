@@ -5,10 +5,10 @@ require_once __DIR__ . '/../lib/db.php';
 require_once __DIR__ . '/../lib/attendance.php';
 
 $employeeId = authEmployeeId();
-$employeeStmt = mysqli_prepare($connection, "SELECT e.*, d.Depart_name, j.basic_salary
+$employeeStmt = mysqli_prepare($connection, "SELECT e.*, d.Depart_name,
+                                              (SELECT es.salary_amount FROM employee_salaries es WHERE es.employee_id=e.Employee_id AND es.effective_from<=CURRENT_DATE ORDER BY es.effective_from DESC,es.id DESC LIMIT 1) AS basic_salary
                                               FROM employee e
                                               LEFT JOIN department d ON d.Depart_id=e.Depart_id
-                                              LEFT JOIN job j ON j.Job_Title=e.jobtitle
                                               WHERE e.Employee_id=? LIMIT 1");
 mysqli_stmt_bind_param($employeeStmt, 'i', $employeeId);
 mysqli_stmt_execute($employeeStmt);
@@ -41,7 +41,7 @@ $escape = static fn($value): string => htmlspecialchars((string) $value, ENT_QUO
     <section class="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
         <article class="rounded-lg border border-[#dedede] bg-white p-4 sm:p-5">
             <div class="flex items-start gap-4"><span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eef6fd] text-lg font-bold text-[#0075de]"><?= $escape(mb_substr($employee['Name'], 0, 1, 'UTF-8')) ?></span><div class="min-w-0"><h2 class="truncate text-[18px] font-bold"><?= $escape($employee['Name']) ?></h2><p class="text-[13px] text-[#615d59]"><?= $escape($employee['Depart_name'] ?: 'ไม่ระบุแผนก') ?> · <?= $escape($employee['jobtitle']) ?></p><span class="mt-2 inline-flex rounded-full bg-[#f6f5f4] px-2.5 py-1 text-[12px]">รหัสพนักงาน <?= $escape($employee['Employee_id']) ?></span></div></div>
-            <dl class="mt-5 grid grid-cols-1 gap-3 border-t border-[#e6e6e6] pt-4 text-[14px] sm:grid-cols-2"><div><dt class="text-[12px] text-[#615d59]">อีเมล</dt><dd class="mt-0.5 break-all font-medium"><?= $escape($employee['Email'] ?: 'ไม่ได้ระบุ') ?></dd></div><div><dt class="text-[12px] text-[#615d59]">โทรศัพท์</dt><dd class="mt-0.5 font-medium"><?= $escape($employee['Phone_no'] ?: 'ไม่ได้ระบุ') ?></dd></div><div><dt class="text-[12px] text-[#615d59]">วันที่เริ่มงาน</dt><dd class="mt-0.5 font-medium"><?= $escape(date('d/m/Y', strtotime($employee['Start_date']))) ?></dd></div><div><dt class="text-[12px] text-[#615d59]">ฐานเงินเดือนปัจจุบัน</dt><dd class="mt-0.5 font-bold">฿<?= number_format((float) $employee['basic_salary'], 2) ?></dd></div></dl>
+            <dl class="mt-5 grid grid-cols-1 gap-3 border-t border-[#e6e6e6] pt-4 text-[14px] sm:grid-cols-2"><div><dt class="text-[12px] text-[#615d59]">อีเมล</dt><dd class="mt-0.5 break-all font-medium"><?= $escape($employee['Email'] ?: 'ไม่ได้ระบุ') ?></dd></div><div><dt class="text-[12px] text-[#615d59]">โทรศัพท์</dt><dd class="mt-0.5 font-medium"><?= $escape($employee['Phone_no'] ?: 'ไม่ได้ระบุ') ?></dd></div><div><dt class="text-[12px] text-[#615d59]">วันที่เริ่มงาน</dt><dd class="mt-0.5 font-medium"><?= $escape(date('d/m/Y', strtotime($employee['Start_date']))) ?></dd></div><div><dt class="text-[12px] text-[#615d59]">ฐานเงินเดือนปัจจุบัน</dt><dd class="mt-0.5 font-bold"><?= $employee['basic_salary'] !== null ? '฿'.number_format((float)$employee['basic_salary'],2) : 'ยังไม่กำหนด' ?></dd></div></dl>
         </article>
 
         <article class="rounded-lg border border-[#dedede] bg-white p-4 sm:p-5">

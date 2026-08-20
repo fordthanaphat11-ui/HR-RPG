@@ -15,11 +15,14 @@ if (isset($_GET['id'])) {
     $count = mysqli_fetch_assoc($check_result)['count'];
     
     if ($count > 0) {
-        die("ไม่สามารถลบแผนกนี้ได้ เนื่องจากยังมีพนักงานอยู่ในแผนก <a href='/department' class='text-blue-500 underline'>กลับไปยังรายการ</a>");
+        appFlashToast('error', 'ไม่สามารถลบแผนกนี้ได้ เนื่องจากยังมีพนักงานอยู่ในแผนก');
+        header('Location: /department');
+        exit;
     }
     
     $query = "DELETE FROM department WHERE Depart_id='$id'";
-    mysqli_query($connection, $query);
+    if (mysqli_query($connection, $query)) appFlashToast('success', 'ลบแผนกเรียบร้อยแล้ว');
+    else appFlashToast('error', 'ไม่สามารถลบแผนกได้');
 }
 
 header("Location: /department");

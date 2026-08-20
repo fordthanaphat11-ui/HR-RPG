@@ -31,9 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               VALUES ('$empid', '$name', '$address', '$phone', '$email', '$sdate', '$dob', '$gender', '$loan', '$p_fund', '$jobtitle', '$depid', $managedepid, '$bacc')";
               
     if (mysqli_query($connection, $query)) {
-        $success = "เพิ่มข้อมูลพนักงานเรียบร้อยแล้ว";
+        appFlashToast('success', 'เพิ่มพนักงานเรียบร้อยแล้ว');
+        header('Location: /employee');
+        exit;
     } else {
         $error = "ไม่สามารถเพิ่มข้อมูลพนักงานได้: " . mysqli_error($connection);
+        appToast('error', 'ไม่สามารถเพิ่มพนักงานได้ กรุณาตรวจสอบข้อมูลแล้วลองใหม่');
     }
 }
 ?>
@@ -50,12 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error): ?>
             <div class="bg-[#f6f5f4] border border-[#e6e6e6] text-[#dd5b00] p-3 rounded-[5px] mb-6 text-[15px]">
                 <?= htmlspecialchars($error) ?>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($success): ?>
-            <div class="bg-[#f6f5f4] border border-[#e6e6e6] text-[#1aae39] p-3 rounded-[5px] mb-6 text-[15px]">
-                <?= htmlspecialchars($success) ?>
             </div>
         <?php endif; ?>
         

@@ -44,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $exception) {
         $error = $exception->getMessage();
     }
+    if ($success !== '') appToast('success', $success);
+    if ($error !== '') appToast('error', $error);
 }
 
 $settings = getAttendanceSettings($connection);
@@ -59,7 +61,6 @@ if ($holidayResult) while ($holiday=mysqli_fetch_assoc($holidayResult)) $holiday
 <div data-attendance-settings class="space-y-4">
     <header class="pb-3 border-b border-[#dedede]"><p class="text-xs font-medium text-[#6d7175]">ตั้งค่าระบบ</p><h1 class="text-lg font-semibold">ตั้งค่าเวลาเข้า–ออกงาน</h1><p class="mt-0.5 text-sm text-[#6d7175]">กำหนดตารางเวลาที่ใช้ตรวจมาสายและคำนวณวันทำงาน</p></header>
     <?php if($error): ?><div role="alert" class="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"><?= $escape($error) ?></div><?php endif; ?>
-    <?php if($success): ?><div role="status" class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700"><i class="fa-solid fa-circle-check mr-2"></i><?= $escape($success) ?></div><?php endif; ?>
     <form method="post" action="/settings/attendance" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"><input type="hidden" name="csrf_token" value="<?= $escape(attendanceCsrfToken()) ?>"><input type="hidden" name="settings_action" value="schedule">
         <section class="rounded-lg border border-[#dedede] bg-white p-4 sm:p-5" aria-labelledby="workScheduleTitle"><h2 id="workScheduleTitle" class="text-sm font-bold">เวลาทำงาน</h2><p class="mt-1 text-xs text-[#6d7175]">เวลาจริงที่บันทึกยังมาจากเซิร์ฟเวอร์เสมอ</p>
             <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2"><div><label for="attendanceWorkStart" class="mb-1.5 block text-sm font-medium">เวลาเริ่มงาน</label><input id="attendanceWorkStart" type="time" name="work_start" value="<?= $escape(substr((string)$settings['work_start'],0,5)) ?>" required class="min-h-10 w-full rounded-md border border-[#dedede] px-3 text-sm"></div><div><label for="attendanceWorkEnd" class="mb-1.5 block text-sm font-medium">เวลาเลิกงาน</label><input id="attendanceWorkEnd" type="time" name="work_end" value="<?= $escape(substr((string)$settings['work_end'],0,5)) ?>" required class="min-h-10 w-full rounded-md border border-[#dedede] px-3 text-sm"></div></div>

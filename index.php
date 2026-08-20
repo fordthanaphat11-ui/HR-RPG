@@ -10,6 +10,7 @@ if (PHP_SAPI === 'cli-server') {
 
 session_start();
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/toast.php';
 
 $title = "ระบบบริหารเงินเดือนและบุคลากร";
 $isHtmxRequest = isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true';
@@ -31,10 +32,14 @@ $routes = [
     '/employee/payhistory'  => __DIR__ . '/pages/employee_payhistory.php',
     '/employee/accounts'    => __DIR__ . '/pages/employee_accounts.php',
     '/attendance'           => __DIR__ . '/pages/attendance.php',
+    '/attendance/calendar'  => __DIR__ . '/pages/attendance_calendar.php',
     '/attendance/history'   => __DIR__ . '/pages/attendance_history.php',
     '/settings/payroll'     => __DIR__ . '/pages/payroll_settings.php',
     '/settings/attendance'  => __DIR__ . '/pages/attendance_settings.php',
     '/settings/attendance/location' => __DIR__ . '/pages/attendance_location_settings.php',
+    '/admin/accounts'       => __DIR__ . '/pages/admin_accounts.php',
+    '/admin/accounts/delete'=> __DIR__ . '/pages/admin_accounts_delete.php',
+    '/admin/password'       => __DIR__ . '/pages/admin_password.php',
     '/me'                   => __DIR__ . '/pages/me.php',
     '/me/attendance'        => __DIR__ . '/pages/me_attendance.php',
     '/me/payhistory'        => __DIR__ . '/pages/me_payhistory.php',

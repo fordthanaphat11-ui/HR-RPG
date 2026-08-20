@@ -367,14 +367,18 @@ INSERT INTO `payroll_adjustments` (`id`, `pay_no`, `emp_id`, `adjustment_type`, 
 CREATE TABLE IF NOT EXISTS `payroll_settings` (
   `id` tinyint(3) unsigned NOT NULL,
   `absence_deduction_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `absence_deduction_mode` varchar(20) NOT NULL DEFAULT 'fixed',
   `absence_deduction_per_day` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `absence_salary_divisor_days` smallint(5) unsigned NOT NULL DEFAULT 30,
   `late_deduction_mode` varchar(20) NOT NULL DEFAULT 'none',
   `late_deduction_per_occurrence` decimal(12,2) NOT NULL DEFAULT 0.00,
   `late_interval_minutes` int(10) unsigned NOT NULL DEFAULT 30,
   `late_deduction_per_interval` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `late_deduction_per_minute` decimal(12,2) NOT NULL DEFAULT 0.00,
   `late_rounding_mode` varchar(10) NOT NULL DEFAULT 'ceil',
   `late_grace_minutes` int(10) unsigned NOT NULL DEFAULT 0,
   `max_late_deduction` decimal(12,2) DEFAULT NULL,
+  `allow_negative_net_salary` tinyint(1) NOT NULL DEFAULT 0,
   `updated_by` varchar(45) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -382,8 +386,8 @@ CREATE TABLE IF NOT EXISTS `payroll_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping data for table hr-rpg.payroll_settings: ~1 rows (approximately)
-INSERT INTO `payroll_settings` (`id`, `absence_deduction_enabled`, `absence_deduction_per_day`, `late_deduction_mode`, `late_deduction_per_occurrence`, `late_interval_minutes`, `late_deduction_per_interval`, `late_rounding_mode`, `late_grace_minutes`, `max_late_deduction`, `updated_by`, `created_at`, `updated_at`) VALUES
-	(1, 1, 100.00, 'per_minutes', 5.00, 30, 5.00, 'ceil', 0, NULL, 'Arjun', '2026-08-16 10:08:15', '2026-08-16 10:20:14');
+INSERT INTO `payroll_settings` (`id`, `absence_deduction_enabled`, `absence_deduction_mode`, `absence_deduction_per_day`, `absence_salary_divisor_days`, `late_deduction_mode`, `late_deduction_per_occurrence`, `late_interval_minutes`, `late_deduction_per_interval`, `late_deduction_per_minute`, `late_rounding_mode`, `late_grace_minutes`, `max_late_deduction`, `allow_negative_net_salary`, `updated_by`, `created_at`, `updated_at`) VALUES
+	(1, 1, 'fixed', 100.00, 30, 'per_minutes', 5.00, 30, 5.00, 0.00, 'ceil', 0, NULL, 0, 'Arjun', '2026-08-16 10:08:15', '2026-08-16 10:20:14');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
