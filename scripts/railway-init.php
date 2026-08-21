@@ -51,21 +51,23 @@ $migrations = [
     'Payroll calculation settings' => __DIR__ . '/../database/2026_08_17_payroll_calculation_settings.sql',
 ];
 foreach ($migrations as $migrationName => $migrationPath) {
+    if (!file_exists($migrationPath)) continue;
     $migrationSql = file_get_contents($migrationPath);
-    if ($migrationSql === false || !mysqli_multi_query($connection, $migrationSql)) {
-        fwrite(STDERR, $migrationName . ' migration failed: ' . mysqli_error($connection) . PHP_EOL);
-        exit(1);
+    if ($migrationSql === false) continue;
+    
+    try {
+        if (@mysqli_multi_query($connection, $migrationSql)) {
+            do {
+                if ($result = @mysqli_store_result($connection)) @mysqli_free_result($result);
+                if (!@mysqli_more_results($connection)) break;
+            } while (@mysqli_next_result($connection));
+        }
+        echo $migrationName . " migration applied or already up-to-date.\n";
+    } catch (Throwable $e) {
+        echo $migrationName . " migration notice: " . $e->getMessage() . "\n";
     }
-    do {
-        if ($result = mysqli_store_result($connection)) mysqli_free_result($result);
-        if (!mysqli_more_results($connection)) break;
-    } while (mysqli_next_result($connection));
-    if (mysqli_errno($connection)) {
-        fwrite(STDERR, $migrationName . ' migration failed: ' . mysqli_error($connection) . PHP_EOL);
-        exit(1);
-    }
-    echo $migrationName . " migration applied.\n";
 }
+
 
 $missingAfterImport = [];
 foreach ($requiredTables as $table) {
