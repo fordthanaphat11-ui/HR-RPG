@@ -1,3 +1,10 @@
 .env
 .env.*
 !.env.example
+node_modules/
+package*.json
+screenshots/
+*.png
+*.jpg
+*.pdf
+
